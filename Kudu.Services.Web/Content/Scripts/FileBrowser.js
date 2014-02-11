@@ -1,4 +1,9 @@
-﻿$(function () {
+﻿$.connection.hub.url = "/filesystemhub";
+var fileSystemHub = $.connection.fileSystemHub;
+fileSystemHub.client.fileExplorerChanged = function () {
+    window.viewModel.selected().fetchChildren(true);
+};
+$.connection.hub.start().done(function () {
     var Vfs = {
         getContent: function (item) {
             return $.ajax({
@@ -75,6 +80,7 @@
         this.fetchChildren = function (force) {
             var that = this;
 
+            updateFileSystemWatcher(this.path());
             if (!that._fetchStatus || (force && that._fetchStatus === 2)) {
                 that._fetchStatus = 1;
                 viewModel.processing(true);
@@ -223,6 +229,7 @@
 
     root.fetchChildren();
     ko.applyBindings(viewModel, document.getElementById("#main"));
+    setupFileSystemWatcher();
 
     window.KuduExec.workingDir.subscribe(function (newValue) {
         if (ignoreWorkingDirChange) {
@@ -296,6 +303,23 @@
             return $.map(cur, function (elm) { return elm.name().substring(curToken.length); });
         }
     };
+
+    function setupFileSystemWatcher() {
+        updateFileSystemWatcher(null);
+    }
+
+    var currnetPath;
+
+    function updateFileSystemWatcher(newValue) {
+        if (newValue && currnetPath === newValue)
+            return;
+        window.viewModel = viewModel;
+        if (currnetPath) {
+            fileSystemHub.server.deregister(currnetPath);
+        }
+        fileSystemHub.server.register(newValue);
+        currnetPath = newValue;
+    }
 
     function stashCurrentSelection(selected) {
         if (window.history && window.history.pushState) {

@@ -294,6 +294,7 @@ namespace Kudu.Services.Web.App_Start
             public static void Configuration(IAppBuilder app)
             {
                 app.MapSignalR<PersistentCommandController>("/commandstream");
+                app.MapSignalR("/filesystemhub", new HubConfiguration());
             }
         }
 
