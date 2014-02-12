@@ -81,7 +81,7 @@ namespace Kudu.Core.Test
         }
 
         [Fact]
-        public Task FileSystemHubMaxWatchers()
+        public void FileSystemHubMaxWatchers()
         {
             var listOfFileSystemHubs = new List<FileSystemHubTest>();
 

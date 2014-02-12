@@ -12,11 +12,13 @@ namespace Kudu.Services.Editor
     public class FileSystemHub : Hub
     {
         public const int MaxFileSystemWatchers = 5;
+
         protected static readonly ConcurrentDictionary<string, SlowDirectoryWatcher> _fileWatchers =
             new ConcurrentDictionary<string, SlowDirectoryWatcher>();
 
         private readonly IEnvironment _environment;
         private readonly ITracer _tracer;
+
         public FileSystemHub(IEnvironment environment, ITracer tracer)
         {
             _environment = environment;
@@ -102,11 +104,12 @@ namespace Kudu.Services.Editor
         protected class SlowDirectoryWatcher : FileSystemWatcher
         {
             public delegate void SlowFileSystemEventHandler(string path);
+
             public event SlowFileSystemEventHandler GeneralDirectoryChanged;
             private readonly object _sync = new object();
             public TimeSpan FireDelay { get; set; }
             public DateTime LastFired { get; private set; }
-            
+
             public SlowDirectoryWatcher(string path)
                 : base(path)
             {
@@ -120,9 +123,9 @@ namespace Kudu.Services.Editor
 
             private void HandleSlowChange(string fullPath)
             {
-                lock (_sync)
+                if (LastFired.Add(FireDelay) < DateTime.UtcNow)
                 {
-                    if (LastFired.Add(FireDelay) < DateTime.UtcNow)
+                    lock (_sync)
                     {
                         GeneralDirectoryChanged.Invoke(System.IO.Path.GetDirectoryName(fullPath));
                         LastFired = DateTime.UtcNow;
