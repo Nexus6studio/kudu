@@ -1,4 +1,6 @@
-﻿using Kudu.Contracts.Tracing;
+﻿using System.Collections.Generic;
+using System.IO;
+using Kudu.Contracts.Tracing;
 using Kudu.Services.Editor;
 using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
@@ -20,9 +22,7 @@ namespace Kudu.Core.Test
             // Setup
             var env = new Mock<IEnvironment>();
             var tracer = new Mock<ITracer>();
-            var request = new Mock<IRequest>();
-
-            var context = new HubCallerContext(request.Object, Guid.NewGuid().ToString());
+            var context = new HubCallerContext(Mock.Of<IRequest>(), Guid.NewGuid().ToString());
             var groups = new Mock<IGroupManager>();
             var clients = new Mock<IHubCallerConnectionContext>();
 
@@ -34,7 +34,7 @@ namespace Kudu.Core.Test
                 await fileSystemHubTest.TestRegister(@"C:\");
 
                 // Assert
-                Assert.Equal(1, fileSystemHubTest.FileWatchersCount);
+                Assert.Equal(1, FileSystemHubTest.FileWatchersCount);
 
                 if (update)
                 {
@@ -42,46 +42,108 @@ namespace Kudu.Core.Test
                     await fileSystemHubTest.TestRegister(@"C:\");
 
                     // Assert
-                    Assert.Equal(1, fileSystemHubTest.FileWatchersCount);
+                    Assert.Equal(1, FileSystemHubTest.FileWatchersCount);
                 }
 
                 // Test
                 await fileSystemHubTest.TestDisconnect();
 
                 // Assert
-                Assert.Equal(0, fileSystemHubTest.FileWatchersCount);
+                Assert.Equal(0, FileSystemHubTest.FileWatchersCount);
             }
         }
 
-        public class FileSystemHubTest : FileSystemHub, IDisposable
+        [Fact]
+        public async Task FileSystemHubDisconnectTest()
         {
-            public FileSystemHubTest(IEnvironment environment, ITracer tracer, HubCallerContext context,
-                IGroupManager group, IHubCallerConnectionContext clients) : base(environment, tracer)
-            {
-                Context = context;
-                Groups = group;
-                Clients = clients;
-            }
+            // Setup
+            var env = new Mock<IEnvironment>();
+            var tracer = new Mock<ITracer>();
+            var context = new HubCallerContext(Mock.Of<IRequest>(), Guid.NewGuid().ToString());
+            var groups = new Mock<IGroupManager>();
+            var clients = new Mock<IHubCallerConnectionContext>();
 
-            public int FileWatchersCount
+            using (
+                var fileSystemHubTest = new FileSystemHubTest(env.Object, tracer.Object, context, groups.Object,
+                    clients.Object))
             {
-                get { return _fileWatchers.Count; }
-            }
+                // Test
+                await fileSystemHubTest.TestRegister(@"C:\");
 
-            public Task TestRegister(string path)
-            {
-                return Register(path);
-            }
+                // Assert
+                Assert.Equal(1, FileSystemHubTest.FileWatchersCount);
 
-            public Task TestDisconnect()
-            {
-                return OnDisconnected();
+                // Test
+                await fileSystemHubTest.TestDisconnect();
             }
+            // Assert
+            Assert.Equal(0, FileSystemHubTest.FileWatchersCount);
+        }
 
-            public new void Dispose()
+        [Fact]
+        public async Task FileSystemHubMaxWatchers()
+        {
+            var listOfFileSystemHubs = new List<FileSystemHubTest>();
+
+            try
             {
-                _fileWatchers.Clear();
+                // Setup
+                var env = new Mock<IEnvironment>();
+                var tracer = new Mock<ITracer>();
+                var groups = new Mock<IGroupManager>();
+                var clients = new Mock<IHubCallerConnectionContext>();
+
+                // Test
+                for (var i = 0; i < 10; i++)
+                {
+                    var context = new HubCallerContext(Mock.Of<IRequest>(), Guid.NewGuid().ToString());
+                    var fileSystemHubTest = new FileSystemHubTest(env.Object, tracer.Object, context, groups.Object,
+                        clients.Object);
+                    listOfFileSystemHubs.Add(fileSystemHubTest);
+                    await fileSystemHubTest.TestRegister(@"C:\");
+
+                    // Assert
+                    Assert.Equal(Math.Min(i + 1, FileSystemHub.MaxFileSystemWatchers), FileSystemHubTest.FileWatchersCount);
+                }
             }
+            finally
+            {
+                foreach (var fileSystemHub in listOfFileSystemHubs)
+                {
+                    fileSystemHub.Dispose();
+                }
+            }
+        }
+    }
+
+    public class FileSystemHubTest : FileSystemHub, IDisposable
+    {
+        public FileSystemHubTest(IEnvironment environment, ITracer tracer, HubCallerContext context,
+            IGroupManager group, IHubCallerConnectionContext clients) : base(environment, tracer)
+        {
+            Context = context;
+            Groups = group;
+            Clients = clients;
+        }
+
+        public static int FileWatchersCount
+        {
+            get { return _fileWatchers.Count; }
+        }
+
+        public Task TestRegister(string path)
+        {
+            return Register(path);
+        }
+
+        public Task TestDisconnect()
+        {
+            return OnDisconnected();
+        }
+
+        public new void Dispose()
+        {
+            _fileWatchers.Clear();
         }
     }
 }

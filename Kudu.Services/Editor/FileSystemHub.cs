@@ -5,11 +5,13 @@ using Microsoft.AspNet.SignalR;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Kudu.Services.Editor
 {
     public class FileSystemHub : Hub
     {
+        public const int MaxFileSystemWatchers = 5;
         protected static readonly ConcurrentDictionary<string, SlowDirectoryWatcher> _fileWatchers =
             new ConcurrentDictionary<string, SlowDirectoryWatcher>();
 
@@ -55,14 +57,10 @@ namespace Kudu.Services.Editor
         public override async Task OnDisconnected()
         {
             using (
-                _tracer.Step(String.Format("Client with connectionId {0} disconnected. Disposing FileSystemWatcher",
+                _tracer.Step(String.Format("Client with connectionId {0} disconnected.",
                     Context.ConnectionId)))
             {
-                SlowDirectoryWatcher slowDirectoryWatcher;
-                if (_fileWatchers.TryRemove(Context.ConnectionId, out slowDirectoryWatcher))
-                {
-                    slowDirectoryWatcher.Dispose();
-                }
+                RemoveFileSystemWatcher(Context.ConnectionId, _tracer);
                 await base.OnDisconnected();
             }
         }
@@ -82,7 +80,33 @@ namespace Kudu.Services.Editor
                     IncludeSubdirectories = false
                 };
                 slowDirectoryWatcher.GeneralDirectoryChanged += NotifyGroup;
+                EnsureFileSystemWatchersMax();
                 return slowDirectoryWatcher;
+            }
+        }
+
+        private static void RemoveFileSystemWatcher(string key, ITracer tracer)
+        {
+            using (tracer.Step(String.Format("Disposing FileSystemWatcher for connectionId {0}", key)))
+            {
+                SlowDirectoryWatcher temp;
+                if (_fileWatchers.TryRemove(key, out temp))
+                {
+                    temp.Dispose();
+                }
+            }
+        }
+
+        private void EnsureFileSystemWatchersMax()
+        {
+            while (_fileWatchers.Count >= MaxFileSystemWatchers)
+            {
+                var toRemove = _fileWatchers.OrderBy(p => p.Value.LastFired).LastOrDefault();
+                if (String.IsNullOrEmpty(toRemove.Key))
+                {
+                    break;
+                }
+                RemoveFileSystemWatcher(toRemove.Key, _tracer);
             }
         }
 
@@ -92,7 +116,7 @@ namespace Kudu.Services.Editor
             public event SlowFileSystemEventHandler GeneralDirectoryChanged;
             private readonly object _sync = new object();
             public TimeSpan FireDelay { get; set; }
-            private DateTime _lastFired;
+            public DateTime LastFired { get; private set; }
             
             public SlowDirectoryWatcher(string path)
                 : base(path)
@@ -101,7 +125,7 @@ namespace Kudu.Services.Editor
                 Created += HandleChange;
                 Deleted += HandleChange;
                 Renamed += HandleRename;
-                _lastFired = DateTime.MinValue;
+                LastFired = DateTime.MinValue;
                 FireDelay = TimeSpan.FromMilliseconds(500);
             }
 
@@ -109,10 +133,10 @@ namespace Kudu.Services.Editor
             {
                 lock (_sync)
                 {
-                    if (_lastFired.Add(FireDelay) < DateTime.UtcNow)
+                    if (LastFired.Add(FireDelay) < DateTime.UtcNow)
                     {
                         GeneralDirectoryChanged.Invoke(System.IO.Path.GetDirectoryName(fullPath));
-                        _lastFired = DateTime.UtcNow;
+                        LastFired = DateTime.UtcNow;
                     }
                 }
             }
