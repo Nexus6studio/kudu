@@ -31,7 +31,7 @@ namespace Kudu.Core.Test
                     clients.Object))
             {
                 // Test
-                await fileSystemHubTest.TestRegister(@"C:\");
+                fileSystemHubTest.TestRegister(@"C:\");
 
                 // Assert
                 Assert.Equal(1, FileSystemHubTest.FileWatchersCount);
@@ -39,7 +39,7 @@ namespace Kudu.Core.Test
                 if (update)
                 {
                     // Test
-                    await fileSystemHubTest.TestRegister(@"C:\");
+                    fileSystemHubTest.TestRegister(@"C:\");
 
                     // Assert
                     Assert.Equal(1, FileSystemHubTest.FileWatchersCount);
@@ -68,7 +68,7 @@ namespace Kudu.Core.Test
                     clients.Object))
             {
                 // Test
-                await fileSystemHubTest.TestRegister(@"C:\");
+                fileSystemHubTest.TestRegister(@"C:\");
 
                 // Assert
                 Assert.Equal(1, FileSystemHubTest.FileWatchersCount);
@@ -100,7 +100,7 @@ namespace Kudu.Core.Test
                     var fileSystemHubTest = new FileSystemHubTest(env.Object, tracer.Object, context, groups.Object,
                         clients.Object);
                     listOfFileSystemHubs.Add(fileSystemHubTest);
-                    await fileSystemHubTest.TestRegister(@"C:\");
+                    fileSystemHubTest.TestRegister(@"C:\");
 
                     // Assert
                     Assert.Equal(Math.Min(i + 1, FileSystemHub.MaxFileSystemWatchers), FileSystemHubTest.FileWatchersCount);
@@ -131,9 +131,9 @@ namespace Kudu.Core.Test
             get { return _fileWatchers.Count; }
         }
 
-        public Task TestRegister(string path)
+        public void TestRegister(string path)
         {
-            return Register(path);
+            Register(path);
         }
 
         public Task TestDisconnect()

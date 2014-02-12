@@ -23,7 +23,7 @@ namespace Kudu.Services.Editor
             _tracer = tracer;
         }
 
-        public async Task Register(string path)
+        public void Register(string path)
         {
             path = path ?? _environment.RootPath;
             using (
@@ -40,17 +40,6 @@ namespace Kudu.Services.Editor
                 {
                     _fileWatchers.TryAdd(Context.ConnectionId, GetFileSystemWatcher(path));
                 }
-                await Groups.Add(Context.ConnectionId, path);
-            }
-        }
-
-        public async Task Deregister(string path)
-        {
-            using (
-                _tracer.Step(String.Format("Deregistering connectionId {0} for FileSystemWatcher on path: {1}",
-                        Context.ConnectionId, path)))
-            {
-                await Groups.Remove(Context.ConnectionId, path);
             }
         }
 

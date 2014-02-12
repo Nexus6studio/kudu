@@ -314,9 +314,6 @@ $.connection.hub.start().done(function () {
         if (newValue && currnetPath === newValue)
             return;
         window.viewModel = viewModel;
-        if (currnetPath) {
-            fileSystemHub.server.deregister(currnetPath);
-        }
         fileSystemHub.server.register(newValue);
         currnetPath = newValue;
     }
